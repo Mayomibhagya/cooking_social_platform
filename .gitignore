@@ -31,3 +31,4 @@ coverage/
 # Ignore package lock files
 package-lock.json
 yarn.lock
+config.bat

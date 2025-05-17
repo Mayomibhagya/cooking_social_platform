@@ -5,6 +5,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document("cookingTips") // MongoDB collection name
 public class TipModel {
@@ -18,10 +20,12 @@ public class TipModel {
     private int ratingCount = 0;
     private boolean featured = false; // For Admins to highlight
     private Map<String, Integer> userRatings = new HashMap<>(); // userId -> rating
+    private int reviewCount = 0;
 
     private String userId;
     private String userDisplayName; // Add this line
     private LocalDateTime createdAt; // Add this line
+    private List<Comment> comments = new ArrayList<>();
 
     public TipModel() {}
 
@@ -66,11 +70,42 @@ public class TipModel {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
+    public List<Comment> getComments() { return comments; }
+    public void setComments(List<Comment> comments) { this.comments = comments; }
+
     public Integer getUserRating(String userId) {
         return userRatings.get(userId);
     }
 
     public void setUserRating(String userId, int rating) {
         userRatings.put(userId, rating);
+    }
+
+    public int getReviewCount() { return reviewCount; }
+    public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
+
+    // Nested Comment class
+    public static class Comment {
+        private String id;
+        private String userId;
+        private String userName;
+        private String text;
+        private int rating;
+        private String time;
+
+        public Comment() {}
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        public String getUserId() { return userId; }
+        public void setUserId(String userId) { this.userId = userId; }
+        public String getUserName() { return userName; }
+        public void setUserName(String userName) { this.userName = userName; }
+        public String getText() { return text; }
+        public void setText(String text) { this.text = text; }
+        public int getRating() { return rating; }
+        public void setRating(int rating) { this.rating = rating; }
+        public String getTime() { return time; }
+        public void setTime(String time) { this.time = time; }
     }
 }

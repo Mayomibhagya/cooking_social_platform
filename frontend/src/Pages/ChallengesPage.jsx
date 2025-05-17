@@ -39,6 +39,8 @@ const ChallengesPage = () => {
   const [showChallengeWall, setShowChallengeWall] = useState(false); 
   const [allActiveChallenges, setAllActiveChallenges] = useState([]);
   const { user } = useContext(AuthContext);
+  const [challengeToDelete, setChallengeToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const filteredChallenges = activeChallenges.filter((challenge) =>
     challenge.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -185,15 +187,28 @@ const ChallengesPage = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDeleteRequest = (id) => {
+    setChallengeToDelete(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!challengeToDelete) return;
     try {
-      await deleteChallenge(id, user.id);
+      await deleteChallenge(challengeToDelete, user.id);
       showToast('Challenge deleted successfully');
       fetchChallenges(user.id);
     } catch (error) {
       console.error('Error deleting challenge:', error);
       showToast('Error deleting challenge');
     }
+    setShowDeleteConfirm(false);
+    setChallengeToDelete(null);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setChallengeToDelete(null);
   };
 
   const handleSelectChallenge = (challenge) => {
@@ -587,7 +602,7 @@ const ChallengesPage = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation(); 
-                      handleDelete(challenge.id);
+                      handleDeleteRequest(challenge.id);
                     }}
                     className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-medium hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-md hover:shadow-lg"
                   >
@@ -642,7 +657,7 @@ const ChallengesPage = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation(); 
-                              handleDelete(challenge.id);
+                              handleDeleteRequest(challenge.id);
                             }}
                             className="text-lg p-1 rounded-full bg-white bg-opacity-80 backdrop-blur-sm shadow-md text-gray-600 hover:text-red-600 transition-all duration-300"
                             aria-label="Delete challenge"
@@ -833,6 +848,30 @@ const ChallengesPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
             </button>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Delete Challenge?</h3>
+                <p className="text-gray-600 mb-6">Are you sure you want to delete this challenge? This action cannot be undone.</p>
+                <div className="flex justify-end space-x-4">
+                  <button
+                    onClick={handleDeleteCancel}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

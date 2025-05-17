@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getAllTips, getTipOfTheDay, searchTips, getFeaturedTips, getTipsByCategory, rateTip, deleteTip, updateTip, getUserRating, getMyTips } from '../api/cookingTipsApi';
+import { getAllTips, getTipOfTheDay, searchTips, getFeaturedTips, getTipsByCategory, rateTip, deleteTip, updateTip, getUserRating, getMyTips, getTipComments, addTipComment, updateTipComment, deleteTipComment } from '../api/cookingTipsApi';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import tipBg from '../assets/Tip.jpg';
 import { format } from 'date-fns';
+import { StarIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 
 if (!localStorage.getItem('tempUserId')) {
   localStorage.setItem('tempUserId', crypto.randomUUID());
@@ -32,6 +33,20 @@ const CookingTips = () => {
   const [hoverRating, setHoverRating] = useState({});
   const [userRatings, setUserRatings] = useState({});
   const [showMyTips, setShowMyTips] = useState(false); // Add toggle for my tips
+  const [selectedTip, setSelectedTip] = useState(null);
+  // Review section state
+  const [tipUserRating, setTipUserRating] = useState(0);
+  const [tipHoverRating, setTipHoverRating] = useState(0);
+  const [tipReviewText, setTipReviewText] = useState('');
+  const [tipReviewUserName, setTipReviewUserName] = useState('');
+  const [tipReviews, setTipReviews] = useState([]);
+  const [tipComments, setTipComments] = useState([]);
+  const [tipCommentText, setTipCommentText] = useState('');
+  const [tipCommentUserName, setTipCommentUserName] = useState('');
+  const [tipCommentRating, setTipCommentRating] = useState(0);
+  const [tipCommentHover, setTipCommentHover] = useState(0);
+  const [editingTipCommentId, setEditingTipCommentId] = useState(null);
+  const [editTipCommentText, setEditTipCommentText] = useState('');
 
   // Helper to get the most-rated tip
   const getMostRatedTip = (tipsArr) => {
@@ -76,6 +91,12 @@ const CookingTips = () => {
     }
     fetchData();
   }, [showMyTips]); 
+
+  useEffect(() => {
+    if (selectedTip) {
+      getTipComments(selectedTip.id).then(res => setTipComments(res.data));
+    }
+  }, [selectedTip]);
 
   const loadUserRatings = async (tips) => {
     try {
@@ -235,6 +256,57 @@ const CookingTips = () => {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const handleTipReviewSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedTip) return;
+  
+    // Create a new review object
+    const newReview = {
+      id: Date.now(), // Use a better unique id in production
+      user: tipReviewUserName || 'Anonymous',
+      text: tipReviewText,
+      rating: tipUserRating,
+      time: new Date().toISOString(),
+    };
+  
+    // Add the new review to the tipReviews array
+    setTipReviews(prev => [newReview, ...prev]);
+  
+    // Reset form fields
+    setTipReviewText('');
+    setTipUserRating(0);
+  };
+
+  const handleTipCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedTip) return;
+    const comment = {
+      text: tipCommentText,
+      rating: tipCommentRating,
+      userName: tipCommentUserName,
+    };
+    const res = await addTipComment(selectedTip.id, comment);
+    setTipComments([res.data, ...tipComments]);
+    setTipCommentText('');
+    setTipCommentRating(0);
+  };
+
+  const handleTipCommentEdit = async (e, commentId) => {
+    e.preventDefault();
+    const comment = {
+      text: editTipCommentText,
+      rating: tipCommentRating,
+    };
+    const res = await updateTipComment(selectedTip.id, commentId, comment);
+    setTipComments(tipComments.map(c => c.id === commentId ? res.data : c));
+    setEditingTipCommentId(null);
+  };
+
+  const handleTipCommentDelete = async (commentId) => {
+    await deleteTipComment(selectedTip.id, commentId);
+    setTipComments(tipComments.filter(c => c.id !== commentId));
   };
 
   const categoryColors = {
@@ -444,13 +516,14 @@ const CookingTips = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-6 mb-6 transition hover:shadow-2xl relative"
+                className="bg-white/80 backdrop-blur-md rounded-xl shadow-lg p-6 mb-6 transition hover:shadow-2xl relative cursor-pointer"
+                onClick={() => setSelectedTip(tip)}
               >
                 {/* Only show edit/delete if tip.userId matches current user or in My Tips */}
                 {(showMyTips || tip.userId === localStorage.getItem('userId')) && (
                   <div className="absolute top-4 right-4 flex space-x-2">
                     <button
-                      onClick={() => handleEdit(tip)}
+                      onClick={e => { e.stopPropagation(); handleEdit(tip); }}
                       className="text-gray-400 hover:text-blue-500 transition-colors"
                       title="Edit tip"
                     >
@@ -460,7 +533,7 @@ const CookingTips = () => {
                       </svg>
                     </button>
                     <button
-                      onClick={() => handleDelete(tip.id)}
+                      onClick={e => { e.stopPropagation(); handleDelete(tip.id); }}
                       disabled={deleteLoading === tip.id}
                       className="text-gray-400 hover:text-red-500 transition-colors"
                       title="Delete tip"
@@ -491,16 +564,21 @@ const CookingTips = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3 pr-16">{tip.title}</h3>
                 <p className="text-gray-700 mb-4">{tip.description}</p>
+                {/* Rating and review count */}
+                <div className="flex items-center space-x-2 mt-2">
+                  <span className="text-yellow-600 font-medium">
+                    ⭐ {Math.round(tip.averageRating)}
+                  </span>
+                  <span className="text-gray-500 text-sm">
+                    ({tip.ratingCount} ratings, {tip.reviewCount || 0} reviews)
+                  </span>
+                </div>
                 {/* ...rest of tip card... */}
                 <div className="flex flex-col space-y-3">
                   <div className="flex justify-between items-center">
                     <span className={`text-sm px-3 py-1 rounded-full ${categoryColors[tip.category]}`}>
                       {tip.category}
                     </span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-yellow-600 font-medium">⭐ {Math.round(tip.averageRating)}</span>
-                      <span className="text-gray-500 text-sm">({tip.ratingCount})</span>
-                    </div>
                   </div>
                   <div className="flex flex-col space-y-2">
                     <div className="flex justify-between items-center">
@@ -617,6 +695,123 @@ const CookingTips = () => {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Tip Details Modal */}
+      {selectedTip && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '700px' }}
+          >
+            <h3 className="text-2xl font-bold mb-2">{selectedTip.title}</h3>
+            <div className="mb-2 text-gray-700">{selectedTip.description}</div>
+            <div className={`inline-block px-3 py-1 text-sm rounded-full ${categoryColors[selectedTip.category]}`}>
+              {selectedTip.category}
+            </div>
+            <div className="mt-4 flex justify-between items-center">
+              <span className="text-blue-700 font-medium">By {selectedTip.userDisplayName}</span>
+              <span className="text-gray-500 text-sm">{selectedTip.createdAt && format(new Date(selectedTip.createdAt), 'PPpp')}</span>
+            </div>
+
+            {/* --- Tip Review Section --- */}
+            <div className="mt-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Community Reviews</h2>
+              <form onSubmit={handleTipCommentSubmit} className="mb-8">
+                <input
+                  type="text"
+                  value={tipCommentUserName}
+                  onChange={e => setTipCommentUserName(e.target.value)}
+                  placeholder="Display Name"
+                  className="w-full border border-gray-300 rounded-lg p-2 mb-2"
+                  required
+                />
+                <textarea
+                  value={tipCommentText}
+                  onChange={e => setTipCommentText(e.target.value)}
+                  placeholder="Share your thoughts about this tip..."
+                  className="w-full border border-gray-300 rounded-lg p-3 mb-2"
+                  rows="3"
+                  required
+                />
+                <div className="flex items-center mb-2">
+                  {[1,2,3,4,5].map(star => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setTipCommentRating(star)}
+                      onMouseEnter={() => setTipCommentHover(star)}
+                      onMouseLeave={() => setTipCommentHover(0)}
+                      className="focus:outline-none"
+                    >
+                      <span className={`text-2xl ${(tipCommentHover || tipCommentRating) >= star ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm text-gray-500">{tipCommentRating > 0 ? `${tipCommentRating} star${tipCommentRating !== 1 ? 's' : ''}` : 'Select rating'}</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={!tipCommentText.trim() || !tipCommentUserName.trim() || tipCommentRating === 0}
+                  className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Submit Review
+                </button>
+              </form>
+              {tipComments.length > 0 ? (
+                <div className="space-y-6">
+                  {tipComments.map(comment => (
+                    <div key={comment.id} className="border-b border-gray-200 pb-6 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-gray-900">{comment.userName}</h3>
+                        <span className="text-sm text-gray-500">{new Date(comment.time).toLocaleString()}</span>
+                      </div>
+                      <div className="flex mb-2">
+                        {[1,2,3,4,5].map(star => (
+                          <span key={star} className={`text-xl ${(comment.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                        ))}
+                      </div>
+                      {editingTipCommentId === comment.id ? (
+                        <form onSubmit={e => handleTipCommentEdit(e, comment.id)}>
+                          <textarea
+                            value={editTipCommentText}
+                            onChange={e => setEditTipCommentText(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-2 mb-2"
+                            rows="2"
+                          />
+                          <button type="submit" className="mr-2 px-3 py-1 bg-blue-600 text-white rounded">Update</button>
+                          <button type="button" onClick={() => setEditingTipCommentId(null)} className="px-3 py-1">Cancel</button>
+                        </form>
+                      ) : (
+                        <>
+                          <p className="text-gray-700 mb-2">{comment.text}</p>
+                          {comment.userId === currentUserId && (
+                            <div className="flex space-x-2">
+                              <button onClick={() => { setEditingTipCommentId(comment.id); setEditTipCommentText(comment.text); setTipCommentRating(comment.rating); }} className="text-blue-600">Edit</button>
+                              <button onClick={() => handleTipCommentDelete(comment.id)} className="text-red-600">Delete</button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-400">No reviews yet</div>
+              )}
+            </div>
+            {/* --- End Tip Review Section --- */}
+
+            <button
+              className="mt-6 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+              onClick={() => setSelectedTip(null)}
+            >
+              Close
+            </button>
           </motion.div>
         </div>
       )}

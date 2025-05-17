@@ -37,3 +37,12 @@ export const getUserRating = (tipId, userId) => api.get(`${BASE_URL}/${tipId}/us
 
 // New: Get tips for current user
 export const getMyTips = () => api.get(`${BASE_URL}/my`, { headers: getAuthHeaders() });
+
+// Tip Comments API
+export const getTipComments = (tipId) => api.get(`${BASE_URL}/${tipId}/comments`);
+export const addTipComment = (tipId, comment) =>
+  api.post(`${BASE_URL}/${tipId}/comments`, comment, { headers: getAuthHeaders() });
+export const updateTipComment = (tipId, commentId, comment) =>
+  api.put(`${BASE_URL}/${tipId}/comments/${commentId}`, comment, { headers: getAuthHeaders() });
+export const deleteTipComment = (tipId, commentId) =>
+  api.delete(`${BASE_URL}/${tipId}/comments/${commentId}`, { headers: getAuthHeaders() });
